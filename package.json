@@ -1,0 +1,27 @@
+{
+  "name": "qlik-script-log-lineage",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pouc/qlik-script-log-lineage.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pouc/qlik-script-log-lineage/issues"
+  },
+  "homepage": "https://github.com/pouc/qlik-script-log-lineage#readme",
+  "devDependencies": {
+    "json2csv": "^3.7.3",
+    "q": "^1.4.1",
+    "util": "^0.10.3"
+  },
+  "dependencies": {
+    "qlik-script-log-parser": "^1.0.3"
+  }
+}
