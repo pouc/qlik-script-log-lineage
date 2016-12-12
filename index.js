@@ -64,7 +64,7 @@ function analyzeFile(parser, file) {
 		
 		var connectFromBlocks = blocks
 			.filter(block => block.blockType == 'LOAD')
-			.filter(block => block.block.source.loadBlockType == 'FROM')
+			.filter(block => block.block.source && block.block.source.loadBlockType == 'FROM')
 			.map(block => { return { from: block.block.source.data.from, block: block }})
 			.map(block => { return { from: block.from.match('^lib://([^/]*)/.+$')[1], block: block.block }})
 			.reduce((result, value) => {
@@ -94,7 +94,13 @@ function analyzeFile(parser, file) {
 			}
 			
 			if(block.block.prefixes && block.block.prefixes.table) {
-				return block.block.prefixes.table;
+				return block.block.prefixes.table.value;
+			}
+			
+			if(block.block.preceding && block.block.preceding) {
+				if (block.block.preceding[0].prefixes && block.block.preceding[0].prefixes.table) {
+					return block.block.preceding[0].prefixes.table.value;
+				}
 			}
 			
 			return NoValue;
@@ -115,7 +121,7 @@ function analyzeFile(parser, file) {
 		
 		function findFields(block) {
 			
-			if(block.block.summary.sum.length == 1) {
+			if(block.block.summary && block.block.summary.sum.length == 1) {
 				return block.block.summary.sum[0].sum1.map(field => {
 					
 					var fieldCandidates = [ NoValue ];
@@ -147,12 +153,11 @@ function analyzeFile(parser, file) {
 					source: block.block.source
 				};
 
-				var retVal = { fields: block.block.summary.sum[0].sum1, block: block }
+				var retVal = { fields: block.block.summary ? block.block.summary.sum[0].sum1 : false, block: block }
 				Object.keys(props).forEach(key => retVal[key] = props[key]);
 				
 				return retVal;
-			})
-			.slice(0, 1)
+			});
 			
 		var incompleteStatements = loadBlocks.filter(statement => {
 			return statement.tableName == NoValue ||
@@ -170,6 +175,8 @@ function analyzeFile(parser, file) {
 			}
 			
 		}
+		
+		console.log('toto 4')
 
 		var tables = [];
 		
@@ -177,6 +184,8 @@ function analyzeFile(parser, file) {
 		var statements = [];
 		
 		for(var sIdx = 0; sIdx < loadBlocks.length; sIdx++) {
+			console.log(sIdx)
+			
 			var loadBlock = loadBlocks[sIdx];
 			
 			if(filter = tryFilter(tables, table => table.tableName == loadBlock.tableName)) {

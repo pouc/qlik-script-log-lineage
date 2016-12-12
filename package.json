@@ -22,6 +22,6 @@
     "util": "^0.10.3"
   },
   "dependencies": {
-    "qlik-script-log-parser": "^1.0.3"
+    "qlik-script-log-parser": "^1.0.4"
   }
 }
