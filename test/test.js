@@ -14,9 +14,9 @@ var logFilesDirectoryName = 'log files';
 var logFilesFilter = [
 	
 ];
-	'4.log'
-var logFilesForce = [
 
+var logFilesForce = [
+	'4.log'
 ];
 
 var logFilesDirectoryFullPaths = [
