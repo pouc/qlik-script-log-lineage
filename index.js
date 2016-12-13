@@ -37,6 +37,8 @@ function analyzeFile(parser, file) {
 	if (parsedFile.parsed) {
 		
 		var outFiles = {};
+		
+		var tables = [];
 	
 		var blocksToKeep = [ 'LOAD', 'CONNECT', 'FINISHED', 'FAILED', 'DROP', 'RENAME', 'DIRECT' ]
 		var blocks = parsedFile.result.filter(block => blocksToKeep.indexOf(block.blockType) !== -1);
@@ -96,10 +98,10 @@ function analyzeFile(parser, file) {
 			if(block.block.prefixes && block.block.prefixes.table) {
 				return block.block.prefixes.table.value;
 			}
-			
-			if(block.block.preceding && block.block.preceding) {
-				if (block.block.preceding[0].prefixes && block.block.preceding[0].prefixes.table) {
-					return block.block.preceding[0].prefixes.table.value;
+
+			if(block.block.precedings) {
+				if (block.block.precedings[0].prefixes && block.block.precedings[0].prefixes.table) {
+					return block.block.precedings[0].prefixes.table.value;
 				}
 			}
 			
@@ -114,9 +116,25 @@ function analyzeFile(parser, file) {
 				return false;
 			} else if(block.block.prefixes && block.block.prefixes.concat && block.block.prefixes.concat.concat) {
 				return true;
-			} 
+			}
 			
-			return NoValue;
+			if(block.block.precedings) {
+				if (block.block.precedings[0].prefixes && block.block.precedings[0].prefixes.concat) {
+					return block.block.precedings[0].prefixes.concat;
+				}
+			}
+			
+			var fields = findFields(block);
+			
+			var concatTable = tables.find(table => {
+				return table.fields.length == fields.length && table.fields.every(field => {
+					return typeof fields.find(previousField => previousField.fieldName == field.fieldName) !== 'undefined';
+				})
+			})
+			
+			if (typeof concatTable !== 'undefined') return { concat: true, name: concatTable.name }
+			
+			return { concat: false };
 		}
 		
 		function findFields(block) {
@@ -175,16 +193,13 @@ function analyzeFile(parser, file) {
 			}
 			
 		}
-		
-		console.log('toto 4')
 
-		var tables = [];
+		
 		
 		var fields = [];
 		var statements = [];
 		
 		for(var sIdx = 0; sIdx < loadBlocks.length; sIdx++) {
-			console.log(sIdx)
 			
 			var loadBlock = loadBlocks[sIdx];
 			
@@ -214,7 +229,7 @@ function analyzeFile(parser, file) {
 				});
 				
 				tables.push({
-					names: loadBlock.tableName,
+					name: loadBlock.tableName,
 					fields: tableFields
 				});
 

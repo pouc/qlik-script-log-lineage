@@ -1,6 +1,6 @@
 var fs = require('fs');
 var path = require('path');
-var util = require('util')
+var util = require('util');
 var promise = require('q');
 
 var analyzer = require('../index');
@@ -14,7 +14,7 @@ var logFilesDirectoryName = 'log files';
 var logFilesFilter = [
 	
 ];
-
+	'4.log'
 var logFilesForce = [
 
 ];
@@ -83,8 +83,6 @@ analyzer.getAnalyzer().then(analyzer => {
 				var analyzed = analyzer.analyze(file.fileContent);
 				
 				if(analyzed.analyzed) {
-					
-					console.log(util.inspect(analyzed, { showHidden: false, depth: null, colors: true, maxArrayLength: null }));
 					
 					console.log('###### libraries.csv');
 					
@@ -164,7 +162,7 @@ analyzer.getAnalyzer().then(analyzer => {
 					delete analyzed.incompleteStatements[0].block.prevLoad;
 					delete analyzed.incompleteStatements[0].block.prevConnect;
 					
-					console.log(util.inspect(analyzed.incompleteStatements[0], { showHidden: false, depth: 5, colors: true, maxArrayLength: null }));
+					console.log(util.inspect(analyzed.incompleteStatements[0], { showHidden: false, depth: 6, colors: true, maxArrayLength: null }));
 					// console.log(analyzed)
 					
 				}
