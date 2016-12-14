@@ -4,7 +4,9 @@ Provides lineage information on what happened during a Qlik Sense reload with th
 
 # Usage
 
+```shell
 npm install qlik-script-log-lineage --save
+```
 
 then
 
