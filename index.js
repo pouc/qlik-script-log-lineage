@@ -3,6 +3,7 @@ var path = require('path');
 var promise = require('q');
 
 var parser = require('qlik-script-log-parser');
+var util = require('util');
 
 
 var NoValue = [ 'NoValue' ];
@@ -89,7 +90,7 @@ function analyzeFile(parser, file) {
 			
 			if(block.block.prefixes && block.block.prefixes.concat && block.block.prefixes.concat.concat) {
 				if(block.block.prefixes.concat.name) {
-					return block.block.prefixes.concat.name;
+					return block.block.prefixes.concat.name.value;
 				} else if (block.prevLoad) {
 					return findTableName(block.prevLoad);
 				}
@@ -152,7 +153,7 @@ function analyzeFile(parser, file) {
 
 					return {
 						field: field,
-						expression: (fieldCandidates[0] != NoValue) ? fieldCandidates[0].txt() : NoValue
+						expression: (fieldCandidates[0] != NoValue) ? fieldCandidates[0].txt() : '*'
 					};
 				});
 			}
@@ -196,58 +197,106 @@ function analyzeFile(parser, file) {
 
 		
 		
+		function addField(tables, fields, tableName, fieldName, expression, rowNumber) {
+			
+			var tablesFilter = tables.filter(table => table.tableName == tableName);
+			
+			if (tablesFilter.length == 0) {
+				
+				var newField = {
+					tableName: tableName,
+					fieldName: fieldName
+				};
+				
+				fields.push(newField);
+				
+				var newSource = {
+					expression: expression,
+					rowNumber: rowNumber
+				}
+					
+				var newTable = {
+					tableName: tableName,
+					fields: [{
+						field: newField,
+						sources: [newSource]
+					}]
+				}
+				
+				tables.push(newTable);
+				
+				return { table: newTable, field: newField, source: newSource };
+				
+			} else if (tablesFilter.length == 1) {
+				
+				var table = tablesFilter[0];
+				var fieldsFilter = table.fields.filter(field => field.field.tableName == tableName && field.field.fieldName == fieldName);
+				
+				if (fieldsFilter.length == 0) {
+					
+					var newField = {
+						tableName: tableName,
+						fieldName: fieldName
+					};
+					
+					fields.push(newField);
+					
+					var newSource = {
+						expression: expression,
+						rowNumber: rowNumber
+					}
+					
+					table.fields.push({
+						field: newField,
+						sources: [newSource]
+					})
+					
+					return { table: table, field: newField, source: newSource };
+					
+				} else if (fieldsFilter.length == 1) {
+					
+					var field = fieldsFilter[0];
+					
+					var newSource = {
+						expression: expression,
+						rowNumber: rowNumber
+					}
+					
+					field.sources.push(newSource);
+					
+					return { table: table, field: field.field, source: newSource };
+					
+				}
+				
+			}
+		}
+		
 		var fields = [];
 		var statements = [];
 		
 		for(var sIdx = 0; sIdx < loadBlocks.length; sIdx++) {
 			
 			var loadBlock = loadBlocks[sIdx];
-			
-			if(filter = tryFilter(tables, table => table.tableName == loadBlock.tableName)) {
-				
-				return {
-					analyzed: false,
-					message: 'not implemented yet: table already exists',
-					filter: filter
-				}
-				
-			} else {
-				
-				var tableFields = loadBlock.fields.map(field => {
-					var newField = {
-						tableName: loadBlock.tableName,
-						fieldName: field.field
-					};
-					
-					fields.push(newField);
-					
-					return {
-						field: newField,
-						expression: field.expression,
-						rowNumber: loadBlock.block.rowNumber
-					}
-				});
-				
-				tables.push({
-					name: loadBlock.tableName,
-					fields: tableFields
-				});
 
-				var lib = tryFilter(libraries, lib => lib.blocks.indexOf(loadBlock.block) != -1);
-				
-				statements.push({
-					lib: lib ? lib : false, 
-					statementType: loadBlock.block.blockType,
-					statement: loadBlock.block.txt(),
-					statementSourceType: loadBlock.source.loadBlockType,
-					statementSource: loadBlock.source.data.from,
-					statementSourceLib: loadBlock.source.data.lib,
-					statementSourceTable: loadBlock.source.data.table,
-					statementSourceParameters: loadBlock.source.data.params,
-					statementTable: loadBlock.tableName,
-					fields: tableFields
-				})
-			}
+			var flds = loadBlock.fields.map(field => {
+				return addField(tables, fields, loadBlock.tableName, field.field, field.expression, loadBlock.block.rowNumber);
+			});
+
+			var lib = tryFilter(libraries, lib => lib.blocks.indexOf(loadBlock.block) != -1);
+			
+			statements.push({
+				lib: lib ? lib : false, 
+				statementType: loadBlock.block.blockType,
+				statement: loadBlock.block.txt(),
+				statementSourceType: loadBlock.source.loadBlockType,
+				statementSource: loadBlock.source.data.from,
+				statementSourceLib: loadBlock.source.data.lib,
+				statementSourceTable: loadBlock.source.data.table,
+				statementSourceParameters: loadBlock.source.data.params,
+				statementTable: loadBlock.tableName,
+				fields: flds
+			})
+
 
 		}
 		

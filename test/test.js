@@ -138,8 +138,8 @@ analyzer.getAnalyzer().then(analyzer => {
 							links.push({
 								keyField: field.field.keyField,
 								keyStatement: statement.keyStatement,
-								rowNumber: field.rowNumber,
-								expression: field.expression
+								rowNumber: field.source.rowNumber,
+								expression: field.source.expression
 							})
 						})
 					});
@@ -159,10 +159,7 @@ analyzer.getAnalyzer().then(analyzer => {
 				
 				} else {
 					
-					delete analyzed.incompleteStatements[0].block.prevLoad;
-					delete analyzed.incompleteStatements[0].block.prevConnect;
-					
-					console.log(util.inspect(analyzed.incompleteStatements[0], { showHidden: false, depth: 6, colors: true, maxArrayLength: null }));
+					console.log(util.inspect(analyzed, { showHidden: false, depth: 6, colors: true, maxArrayLength: null }));
 					// console.log(analyzed)
 					
 				}
