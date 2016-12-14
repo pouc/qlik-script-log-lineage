@@ -11,6 +11,9 @@ then
 var analyzer = require(' qlik-script-log-lineage');
 
 analyzer.getAnalyzer().then(analyzer => {
+
   var analyzed = analyzer.analyze(fileContent);
+  
   console.log(analyzed);
+  
 });
