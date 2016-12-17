@@ -16,11 +16,12 @@ var logFilesFilter = [
 ];
 
 var logFilesForce = [
-	'4.log'
+	'dd45cfae-fc4d-4077-9aa0-ac6ea2a52be7.2016_09_12_15_34_19.318C35741417B5EFA5F4.log'
 ];
 
 var logFilesDirectoryFullPaths = [
-	path.join(__dirname, logFilesDirectoryName)
+	path.join(__dirname, logFilesDirectoryName, 'test'),
+	path.join(__dirname, logFilesDirectoryName, 'script')
 ];
 
 analyzer.getAnalyzer().then(analyzer => {
@@ -159,7 +160,7 @@ analyzer.getAnalyzer().then(analyzer => {
 				
 				} else {
 					
-					console.log(util.inspect(analyzed, { showHidden: false, depth: 6, colors: true, maxArrayLength: null }));
+					console.log(util.inspect(analyzed, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }));
 					// console.log(analyzed)
 					
 				}

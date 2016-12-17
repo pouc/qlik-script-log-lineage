@@ -106,17 +106,39 @@ function analyzeFile(parser, file) {
 				}
 			}
 			
+			if(block.block.source && block.block.source.loadBlockType == 'FROM') {
+				if(block.block.source.data && block.block.source.data.params) {
+					var fParams = block.block.source.data.params.filter(param => param.table);
+					if (fParams.length == 1) return fParams[0].value;
+				}
+				
+				if(block.block.source.data && block.block.source.data.from) {
+					if (block.block.source.data.from.match(/^lib:\/\//)) {
+						var s1 = block.block.source.data.from.split('/');
+						var s2 = s1[s1.length - 1].split('\\');
+						var csvName = s2[s2.length - 1];
+						return csvName.split('.').slice(0, -1).join('.');
+					}
+				}
+			}
+			
+			if(block.block.source && block.block.source.loadBlockType == 'RESIDENT') {
+				if(block.block.source.data && block.block.source.data.from) {
+					return block.block.source.data.table;
+				}
+			}
+			
 			return NoValue;
 			
 		}
 		
 		function findConcat(block) {
 			if(block.block.prefixes && !block.block.prefixes.concat) {
-				return true;
+				return { concat: true };
 			} else if(block.block.prefixes && block.block.prefixes.concat && !block.block.prefixes.concat.concat) {
-				return false;
+				return { concat: false };
 			} else if(block.block.prefixes && block.block.prefixes.concat && block.block.prefixes.concat.concat) {
-				return true;
+				return { concat: true };
 			}
 			
 			if(block.block.precedings) {
@@ -141,11 +163,13 @@ function analyzeFile(parser, file) {
 		function findFields(block) {
 			
 			if(block.block.summary && block.block.summary.sum.length == 1) {
+				
 				return block.block.summary.sum[0].sum1.map(field => {
 					
 					var fieldCandidates = [ NoValue ];
 					
 					if(block.block.load) {
+						
 						fieldCandidates = block.block.load.fields.filter(sourceField => sourceField.field == field).map(sourceField => sourceField.expr);
 						if(fieldCandidates.length == 0) fieldCandidates = block.block.load.fields.filter(sourceField => sourceField == '*').map(sourceField => { return { type: 'VAR', value: '*', txt: () => '*' }});
 						if(fieldCandidates.length == 0) fieldCandidates = [ NoValue ]
@@ -162,27 +186,34 @@ function analyzeFile(parser, file) {
 		}
 		
 		var loadBlocks = blocks
-			.filter(block => block.blockType == 'LOAD')
+			.filter(block => block.blockType == 'LOAD' || block.blockType == 'DROP' || block.blockType == 'RENAME')
 			.map(block => {
 				
-				var props = {
-					tableName: findTableName(block),
-					concat: findConcat(block),
-					fields: findFields(block),
-					source: block.block.source
-				};
-
-				var retVal = { fields: block.block.summary ? block.block.summary.sum[0].sum1 : false, block: block }
-				Object.keys(props).forEach(key => retVal[key] = props[key]);
+				var retVal = { block: block };
+				
+				if(block.blockType == 'LOAD') {
+				
+					var props = {
+						tableName: findTableName(block),
+						concat: findConcat(block),
+						fields: findFields(block),
+						source: block.block.source
+					};
+					
+					Object.keys(props).forEach(key => retVal[key] = props[key]);
+				
+				}
 				
 				return retVal;
 			});
 			
 		var incompleteStatements = loadBlocks.filter(statement => {
-			return statement.tableName == NoValue ||
+			return statement.block.blockType == 'LOAD' && (
+				statement.tableName == NoValue ||
 				statement.concat == NoValue ||
 				statement.fields == NoValue ||
-				statement.source == NoValue;
+				statement.source == NoValue
+			);
 		});
 		
 		if (incompleteStatements.length > 0) {
@@ -277,25 +308,48 @@ function analyzeFile(parser, file) {
 		for(var sIdx = 0; sIdx < loadBlocks.length; sIdx++) {
 			
 			var loadBlock = loadBlocks[sIdx];
-
-			var flds = loadBlock.fields.map(field => {
-				return addField(tables, fields, loadBlock.tableName, field.field, field.expression, loadBlock.block.rowNumber);
-			});
-
-			var lib = tryFilter(libraries, lib => lib.blocks.indexOf(loadBlock.block) != -1);
 			
-			statements.push({
-				lib: lib ? lib : false, 
-				statementType: loadBlock.block.blockType,
-				statement: loadBlock.block.txt(),
-				statementSourceType: loadBlock.source.loadBlockType,
-				statementSource: loadBlock.source.data.from,
-				statementSourceLib: loadBlock.source.data.lib,
-				statementSourceTable: loadBlock.source.data.table,
-				statementSourceParameters: loadBlock.source.data.params,
-				statementTable: loadBlock.tableName,
-				fields: flds
-			})
+			if (loadBlock.block.blockType == 'LOAD') {
+
+				var tablesFilter = tables.filter(table => table.tableName == loadBlock.tableName);
+				console.log(loadBlock.concat, tablesFilter)
+				if(!loadBlock.concat.concat && tablesFilter.length > 0) {
+					
+					var tableSuffix = 1;
+					do {
+						var tablesFilterSuffix = tables.filter(table => table.tableName == loadBlock.tableName + '-' + tableSuffix);
+						if (tablesFilterSuffix.length == 0) break;
+						tableSuffix++;
+					} while(true);
+					
+					loadBlock.tableName = loadBlock.tableName + '-' + tableSuffix;
+					
+				}
+
+				var flds = loadBlock.fields.map(field => {
+					return addField(tables, fields, loadBlock.tableName, field.field, field.expression, loadBlock.block.rowNumber);
+				});
+
+				var lib = tryFilter(libraries, lib => lib.blocks.indexOf(loadBlock.block) != -1);
+				
+				statements.push({
+					lib: lib ? lib : false, 
+					statementType: loadBlock.block.blockType,
+					statement: loadBlock.block.txt(),
+					statementSourceType: loadBlock.source.loadBlockType,
+					statementSource: loadBlock.source.data.from,
+					statementSourceLib: loadBlock.source.data.lib,
+					statementSourceTable: loadBlock.source.data.table,
+					statementSourceParameters: loadBlock.source.data.params,
+					statementTable: loadBlock.tableName,
+					fields: flds
+				})
+			
+			} else if (loadBlock.block.blockType == 'DROP') {
+				
+			} else if (loadBlock.block.blockType == 'RENAME') {
+				
+			}
 
 
 		}
