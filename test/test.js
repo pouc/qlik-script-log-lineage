@@ -16,7 +16,8 @@ var logFilesFilter = [
 ];
 
 var logFilesForce = [
-	'dd45cfae-fc4d-4077-9aa0-ac6ea2a52be7.2016_09_12_15_34_19.318C35741417B5EFA5F4.log'
+	// 'dd45cfae-fc4d-4077-9aa0-ac6ea2a52be7.2016_09_12_15_34_19.318C35741417B5EFA5F4.log'
+	'5e5e779e-dde6-404d-b682-d6b6710d07dd.2016_11_08_18_05_29.0FEAC4EC4F26D589738A.log'
 ];
 
 var logFilesDirectoryFullPaths = [
@@ -133,22 +134,20 @@ analyzer.getAnalyzer().then(analyzer => {
 						console.log('fields file saved');
 					});
 					
-					var links = [];
-					analyzed.statements.forEach(statement => {
-						statement.fields.forEach(field => {
-							links.push({
-								keyField: field.field.keyField,
-								keyStatement: statement.keyStatement,
-								rowNumber: field.source.rowNumber,
-								expression: field.source.expression
-							})
-						})
+					var links2 = analyzed.links.map(link => {
+						console.log(link)
+						return {
+							keyField: link.field.keyField,
+							keyStatement: link.source.statement.keyStatement,
+							rowNumber: link.source.rowNumber,
+							expression: link.source.expression.txt()
+						}
 					});
 					
 					console.log('###### linksFieldStatement.csv');
 					
 					var linksFieldStatement = json2csv({
-						data: links,
+						data: links2,
 						fields: [ 'keyField', 'keyStatement', 'rowNumber', 'expression' ],
 						defaultValue: 'false'
 					});

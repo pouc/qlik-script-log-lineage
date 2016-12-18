@@ -160,6 +160,48 @@ function analyzeFile(parser, file) {
 			return { concat: false };
 		}
 		
+		function fieldFindSourceFields(field) {
+			
+			switch (field.type) {
+				
+				case 'EXPR':
+					var retVal = [];
+					if(field.left) retVal = retVal.concat(fieldFindSourceFields(field.left));
+					if(field.right) retVal = retVal.concat(fieldFindSourceFields(field.right));
+					return retVal;
+					
+				case 'VAR':
+					return [ field.value ];
+					
+				case 'FCALL':
+					var retVal = [];
+					if (field.params) {
+						field.params.forEach(param => {
+							retVal = retVal.concat(fieldFindSourceFields(param));
+						});
+					}
+					return retVal;
+					
+				default:
+					return [];
+				
+			}
+			
+		}
+		
+		function fieldsFindSourceFields(fields) {
+			var retVal = [];
+			fields.forEach(field => {
+				return fieldFindSourceFields(field.source.expression).forEach(foundField => {
+					retVal.push({
+						field: field,
+						foundField: foundField
+					});
+				});
+			})
+			return retVal;
+		}
+		
 		function findFields(block) {
 			
 			if(block.block.summary && block.block.summary.sum.length == 1) {
@@ -169,15 +211,18 @@ function analyzeFile(parser, file) {
 					var fieldCandidates = [ NoValue ];
 					
 					if(block.block.load) {
+
+						fieldCandidates = block.block.load.fields.filter(sourceField => {
+							return sourceField.field == field;
+						}).map(sourceField => sourceField.expr);
 						
-						fieldCandidates = block.block.load.fields.filter(sourceField => sourceField.field == field).map(sourceField => sourceField.expr);
 						if(fieldCandidates.length == 0) fieldCandidates = block.block.load.fields.filter(sourceField => sourceField == '*').map(sourceField => { return { type: 'VAR', value: '*', txt: () => '*' }});
 						if(fieldCandidates.length == 0) fieldCandidates = [ NoValue ]
 					}
 
 					return {
 						field: field,
-						expression: (fieldCandidates[0] != NoValue) ? fieldCandidates[0].txt() : '*'
+						expression: (fieldCandidates[0] != NoValue) ? fieldCandidates[0] : { type: 'VAR', value: '*', txt: () => '*' }
 					};
 				});
 			}
@@ -228,7 +273,7 @@ function analyzeFile(parser, file) {
 
 		
 		
-		function addField(tables, fields, tableName, fieldName, expression, rowNumber) {
+		function addField(tables, fields, tableName, fieldName, expression, rowNumber, statement) {
 			
 			var tablesFilter = tables.filter(table => table.tableName == tableName);
 			
@@ -243,7 +288,8 @@ function analyzeFile(parser, file) {
 				
 				var newSource = {
 					expression: expression,
-					rowNumber: rowNumber
+					rowNumber: rowNumber,
+					statement: statement
 				}
 					
 				var newTable = {
@@ -274,7 +320,8 @@ function analyzeFile(parser, file) {
 					
 					var newSource = {
 						expression: expression,
-						rowNumber: rowNumber
+						rowNumber: rowNumber,
+						statement: statement
 					}
 					
 					table.fields.push({
@@ -290,7 +337,8 @@ function analyzeFile(parser, file) {
 					
 					var newSource = {
 						expression: expression,
-						rowNumber: rowNumber
+						rowNumber: rowNumber,
+						statement: statement
 					}
 					
 					field.sources.push(newSource);
@@ -304,15 +352,17 @@ function analyzeFile(parser, file) {
 		
 		var fields = [];
 		var statements = [];
+		var links = [];
 		
 		for(var sIdx = 0; sIdx < loadBlocks.length; sIdx++) {
 			
 			var loadBlock = loadBlocks[sIdx];
 			
 			if (loadBlock.block.blockType == 'LOAD') {
+				
+				var newStatement = {};
 
 				var tablesFilter = tables.filter(table => table.tableName == loadBlock.tableName);
-				console.log(loadBlock.concat, tablesFilter)
 				if(!loadBlock.concat.concat && tablesFilter.length > 0) {
 					
 					var tableSuffix = 1;
@@ -327,23 +377,79 @@ function analyzeFile(parser, file) {
 				}
 
 				var flds = loadBlock.fields.map(field => {
-					return addField(tables, fields, loadBlock.tableName, field.field, field.expression, loadBlock.block.rowNumber);
+					return addField(tables, fields, loadBlock.tableName, field.field, field.expression, loadBlock.block.rowNumber, newStatement);
 				});
+				
+				links = links.concat(flds);
+				
+				if (loadBlock.source.loadBlockType == 'RESIDENT') {
+					var sourceFlds = fieldsFindSourceFields(flds);
+					
+					var sourceTablesFilter = tables.filter(table => table.tableName == loadBlock.source.data.table);
+					
+					if(sourceTablesFilter.length !== 1) {
+						
+						return {
+							analyzed: false,
+							message: 'impossible to find source resident table',
+							table: loadBlock.source.data.table
+						}
+						
+					}
+					
+					var sourceFields = sourceFlds.map(sourceFld => {
+						var fieldCandidates;
+						if(sourceFld.foundField == '*') {
+							fieldCandidates = sourceTablesFilter[0].fields.filter(srcFldCandidate => sourceFld.field.field.fieldName == srcFldCandidate.field.fieldName);
+						} else {
+							fieldCandidates = sourceTablesFilter[0].fields.filter(srcFldCandidate => sourceFld.foundField == srcFldCandidate.field.fieldName);
+						}
+
+						return {
+							field: sourceFld.field,
+							sourceField: (fieldCandidates.length == 1) ? fieldCandidates[0] : false
+						};
+					})
+					
+					
+					
+					sourceFields.forEach(sourceField => {
+						if (sourceField.sourceField.sources) {
+							sourceField.sourceField.sources.forEach(source => {
+								links.push(addField(
+									tables,
+									fields,
+									sourceField.field.table.tableName,
+									sourceField.field.field.fieldName,
+									source.expression,
+									source.rowNumber,
+									source.statement
+								));
+							})
+						}
+					});
+
+					
+				}
 
 				var lib = tryFilter(libraries, lib => lib.blocks.indexOf(loadBlock.block) != -1);
+
+				newStatement.lib 						= lib ? lib : false, 
+				newStatement.statementType				= loadBlock.block.blockType,
+				newStatement.statement					= loadBlock.block.txt(),
+				newStatement.statementSourceType		= loadBlock.source.loadBlockType,
+				newStatement.statementSource			= loadBlock.source.data.from,
+				newStatement.statementSourceLib			= loadBlock.source.data.lib,
+				newStatement.statementSourceTable		= loadBlock.source.data.table,
+				newStatement.statementSourceParameters	= loadBlock.source.data.params,
+				newStatement.statementTable				= loadBlock.tableName
 				
-				statements.push({
-					lib: lib ? lib : false, 
-					statementType: loadBlock.block.blockType,
-					statement: loadBlock.block.txt(),
-					statementSourceType: loadBlock.source.loadBlockType,
-					statementSource: loadBlock.source.data.from,
-					statementSourceLib: loadBlock.source.data.lib,
-					statementSourceTable: loadBlock.source.data.table,
-					statementSourceParameters: loadBlock.source.data.params,
-					statementTable: loadBlock.tableName,
-					fields: flds
-				})
+				statements.push(newStatement);
+
+				// console.log('--------------------------')
+				// console.log(util.inspect(flds, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }));
+				
+				
 			
 			} else if (loadBlock.block.blockType == 'DROP') {
 				
@@ -356,12 +462,15 @@ function analyzeFile(parser, file) {
 		
 		fields.forEach((item, index) => item.keyField = index)
 		statements.forEach((item, index) => item.keyStatement = index)
+		
+		//console.log(util.inspect(links, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }));
 
 		return {
 			analyzed: true,
 			libraries: libraries,
 			fields: fields,
-			statements: statements
+			statements: statements,
+			links: links
 		}
 		
 	}
