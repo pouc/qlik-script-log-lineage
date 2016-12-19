@@ -446,12 +446,81 @@ function analyzeFile(parser, file) {
 				
 				statements.push(newStatement);
 
-				// console.log('--------------------------')
-				// console.log(util.inspect(flds, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }));
-				
-				
 			
 			} else if (loadBlock.block.blockType == 'DROP') {
+				
+				console.log(util.inspect(loadBlock.block, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }))
+				
+				function removeIf(arr, callback) {
+					var i = arr.length;
+					while (i--) {
+						if (callback(arr[i], i)) {
+							arr.splice(i, 1);
+						}
+					}
+				};
+				
+				function dropTable(tables, fields, tableName) {
+					
+					var tablesFilter = tables.filter(table => {
+						return tableName == table.tableName;
+					});
+					
+					if (tablesFilter.length == 0) return;
+					
+					tablesFilter[0].fields.forEach(field => {
+						dropField(tables, fields, field.field.fieldName, tableName);
+					})
+					
+					removeIf(tables, table => table.tableName == tableName);
+					
+				}
+				
+				function dropField(tables, fields, fieldName, tableName) {
+					
+					var fieldsFilter = fields.filter(field => {
+						return (((typeof tableName !== 'undefined' && field.tableName == tableName) || typeof tableName === 'undefined') && field.fieldName == fieldName);
+					});
+					
+					if (fieldsFilter.length == 0) return;
+
+					fieldsFilter.forEach(toDelete => {
+						
+						removeIf(links, link => link.table.tableName == toDelete.tableName && link.field.fieldName == toDelete.fieldName);
+						removeIf(fields, field => field.tableName == toDelete.tableName && field.fieldName == toDelete.fieldName);
+						
+						var tablesFilter = tables.filter(table => {
+							return toDelete.tableName == table.tableName;
+						});
+						
+						if (tablesFilter.length == 1) {
+							removeIf(tablesFilter[0].fields, field => field.field.fieldName == toDelete.fieldName);
+							
+							if (tablesFilter[0].fields.length == 0) {
+								dropTable(tables, fields, toDelete.tableName);
+							}
+						}
+					})
+					
+				}
+				
+				if (loadBlock.block.block.type == 'FIELD') {
+					
+					loadBlock.block.block.drop.forEach(drop => {
+						dropField(tables, fields, drop.value, ((loadBlock.block.block.from) ? loadBlock.block.block.from.value : undefined));
+					})
+					
+				}
+				
+				if (loadBlock.block.block.type == 'Table') {
+					
+					loadBlock.block.block.drop.forEach(drop => {
+						dropTable(tables, fields, drop.value);
+					})
+					
+				}
+				
+				
 				
 			} else if (loadBlock.block.blockType == 'RENAME') {
 				
@@ -463,7 +532,7 @@ function analyzeFile(parser, file) {
 		fields.forEach((item, index) => item.keyField = index)
 		statements.forEach((item, index) => item.keyStatement = index)
 		
-		//console.log(util.inspect(links, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }));
+		console.log(util.inspect(fields, { showHidden: false, depth: 8, colors: true, maxArrayLength: null }));
 
 		return {
 			analyzed: true,

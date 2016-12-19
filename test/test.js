@@ -135,7 +135,6 @@ analyzer.getAnalyzer().then(analyzer => {
 					});
 					
 					var links2 = analyzed.links.map(link => {
-						console.log(link)
 						return {
 							keyField: link.field.keyField,
 							keyStatement: link.source.statement.keyStatement,
